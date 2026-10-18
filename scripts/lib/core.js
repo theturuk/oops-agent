@@ -12,10 +12,23 @@ const FILE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 // Shell tools can touch any file, so they get a whole-project snapshot.
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 
+// The temp dir has more than one spelling (macOS: /var vs /private/var, Windows: 8.3 short
+// names like RUNNER~1), so compare both the given and the resolved forms of each path.
+function realOr(p) {
+  try { return fs.realpathSync.native(p); } catch (_) {
+    try { return path.join(fs.realpathSync.native(path.dirname(p)), path.basename(p)); } catch (__) { return p; }
+  }
+}
 function isInTempDir(abs) {
   const norm = (p) => (process.platform === 'win32' ? p.toLowerCase() : p);
-  const rel = path.relative(norm(fs.realpathSync.native(os.tmpdir())), norm(abs));
-  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+  const tmp = os.tmpdir();
+  for (const dir of [tmp, realOr(tmp)]) {
+    for (const p of [abs, realOr(abs)]) {
+      const rel = path.relative(norm(dir), norm(p));
+      if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) return true;
+    }
+  }
+  return false;
 }
 
 function newId() {

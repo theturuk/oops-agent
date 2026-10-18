@@ -1,6 +1,9 @@
 <div align="center">
 
-# oops!
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+  <img src="docs/logo-light.png" alt="oops!" width="300">
+</picture>
 
 ### Undo anything your AI agent did. Even `rm -rf`.
 

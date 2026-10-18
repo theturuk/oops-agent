@@ -203,7 +203,7 @@ const kind = (c) => (!c.b ? 'add' : !c.a ? 'del' : 'mod');
 const MK = { add: '+', del: '−', mod: '~' };
 const VERB = { add: 'created', del: 'deleted', mod: 'modified' };
 
-const clock = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const clock = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
 function ago(t) {
   const s = Math.round((Date.now() - t) / 1000);
   if (s < 45) return 'just now';

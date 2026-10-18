@@ -12,7 +12,7 @@ with a visual timeline to scrub back through and restore from.
 ![deps](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
-<img src="docs/timeline.jpg" alt="The Oops timeline: every step the agent took on the left, a diff of the selected step on the right, and a scrubber at the bottom" width="900">
+<img src="docs/demo.gif" alt="Demo: Claude builds an app, then runs rm -rf dist src .env. Oops shows every deleted file and restores them all with one click." width="900">
 
 </div>
 
@@ -38,11 +38,11 @@ Your source code and your `.env` are gone. You press `Esc Esc` to open Claude Co
 
 ## The fix
 
-<img src="docs/rm-rf.jpg" alt="Oops showing the rm -rf step: four files deleted, with the full content of the deleted src/app.js" width="900">
+<img src="docs/rm-rf.png" alt="Oops showing the rm -rf step: four files deleted, with the full content of the deleted src/app.js" width="900">
 
 Oops was watching. Every file that command deleted is in the timeline, contents and all. Click **Undo this step**:
 
-<img src="docs/restored.jpg" alt="After restoring: a purple Restored step brought back .env, dist/app.js, src/app.js and src/db.js" width="900">
+<img src="docs/restored.png" alt="After restoring: a purple Restored step brought back .env, dist/app.js, src/app.js and src/db.js" width="900">
 
 All four files are back. The restore is a step of its own, so you can undo the undo.
 
@@ -86,6 +86,8 @@ Restart Claude Code. That's it: from now on, every change Claude makes is record
 | `/oops-agent:oops undo` | Reverts the last step (run it again to redo) |
 | `/oops-agent:oops log` | Lists the recorded steps |
 | *"oops, bring back the config file you deleted"* | Claude finds the right step and restores it |
+
+<img src="docs/timeline.png" alt="The Oops timeline: every step the agent took on the left, a line-by-line diff of the selected step on the right, and a scrubber at the bottom" width="900">
 
 **In the timeline:** click a step on the left (or drag the scrubber, or use ← →) to see exactly what changed. Press ▶ / space to watch your project change step by step. Then:
 

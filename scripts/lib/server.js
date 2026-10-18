@@ -54,6 +54,11 @@ function startServer(store, { port = 0, open = true } = {}) {
       if (url.pathname === '/api/events') {
         return send(res, 200, { root: store.root, events: store.events() });
       }
+      if (url.pathname === '/api/head') {
+        let st = { size: 0, mtimeMs: 0 };
+        try { st = fs.statSync(store.eventsFile); } catch (_) {}
+        return send(res, 200, { size: st.size, mtime: st.mtimeMs });
+      }
       if (url.pathname === '/api/blob') {
         const hash = url.searchParams.get('hash');
         if (!/^[0-9a-f]{64}$/.test(hash || '') || !store.hasBlob(hash)) return send(res, 404, { error: 'not found' });

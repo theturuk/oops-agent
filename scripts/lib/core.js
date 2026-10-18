@@ -2,6 +2,7 @@
 // Hook handling (record what the agent changed) and restore logic.
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { Store } = require('./store');
@@ -10,6 +11,12 @@ const { snapshotFile, snapshotTree, diffSnapshots, toKey, toAbs } = require('./s
 const FILE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 // Shell tools can touch any file, so they get a whole-project snapshot.
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
+
+function isInTempDir(abs) {
+  const norm = (p) => (process.platform === 'win32' ? p.toLowerCase() : p);
+  const rel = path.relative(norm(fs.realpathSync.native(os.tmpdir())), norm(abs));
+  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
 
 function newId() {
   return `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
@@ -65,7 +72,10 @@ function handlePre(store, ev) {
     const index = store.loadIndex();
     for (const f of filePathsFor(tool, input)) {
       const abs = path.resolve(ev.cwd || store.root, f);
-      pending.files[toKey(store.root, abs)] = snapshotFile(store, abs, index);
+      const key = toKey(store.root, abs);
+      // Scratch files the agent writes to the OS temp dir (outside the project) are just noise.
+      if (path.isAbsolute(key) && isInTempDir(abs)) continue;
+      pending.files[key] = snapshotFile(store, abs, index);
     }
     store.saveIndex(index);
   } else {

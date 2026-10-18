@@ -116,6 +116,37 @@ try {
     assert.ok(exists('src/app.js'));
   });
 
+  step('agent scratch files in the temp dir are not recorded', () => {
+    const scratch = path.join(os.tmpdir(), `oops-scratch-${process.pid}.js`);
+    hook('PreToolUse', 'Write', { file_path: scratch }, 't8');
+    fs.writeFileSync(scratch, 'x');
+    hook('PostToolUse', 'Write', { file_path: scratch }, 't8');
+    fs.rmSync(scratch);
+    assert.doesNotMatch(oops('log', '--limit', '100'), /oops-scratch/);
+  });
+
+  step('2000 steps: hooks stay fast and restore is correct', () => {
+    // Write a long history straight into the store, then time a real hook call.
+    const { Store } = require('../scripts/lib/store');
+    process.env.OOPS_HOME = home;
+    const store = new Store(proj);
+    const h = store.putBuffer(Buffer.from('v'));
+    const lines = [];
+    for (let i = 0; i < 2000; i++) lines.push(JSON.stringify({ id: `bulk${i}`, t: Date.now() + i, tool: 'Edit', summary: 'x', changes: [{ p: `bulk/f${i % 20}.txt`, b: h, a: h }] }));
+    fs.appendFileSync(store.eventsFile, lines.join('\n') + '\n');
+    const t0 = Date.now();
+    hook('PreToolUse', 'Bash', { command: 'true' }, 't9');
+    hook('PostToolUse', 'Bash', { command: 'true' }, 't9');
+    const ms = Date.now() - t0;
+    assert.ok(ms < 3000, `two hook calls took ${ms} ms`);
+    fs.writeFileSync(path.join(proj, '.env'), 'before\n');
+    hook('PreToolUse', 'Write', { file_path: path.join(proj, '.env') }, 't10');
+    fs.writeFileSync(path.join(proj, '.env'), 'after\n');
+    hook('PostToolUse', 'Write', { file_path: path.join(proj, '.env') }, 't10');
+    oops('undo');
+    assert.strictEqual(read('.env'), 'before\n');
+  });
+
   step('broken hook input never fails', () => {
     execFileSync('node', [CLI, 'hook'], { env, input: 'not json' });
   });

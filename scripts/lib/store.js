@@ -124,7 +124,7 @@ class Store {
       if (!line.trim()) continue;
       try { out.push(JSON.parse(line)); } catch (_) { /* skip torn line */ }
     }
-    out.sort((a, b) => a.t - b.t);
+    // Append order is the true order; timestamps can go backwards if the system clock is adjusted.
     return out;
   }
 

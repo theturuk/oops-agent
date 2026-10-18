@@ -108,6 +108,7 @@ node <plugin-dir>/scripts/oops.js show <step-id>      # files changed in one ste
 node <plugin-dir>/scripts/oops.js undo                # revert the last step
 node <plugin-dir>/scripts/oops.js restore <step-id> [--file path] [--after]
 node <plugin-dir>/scripts/oops.js ui                  # open the timeline
+node <plugin-dir>/scripts/oops.js prune [--keep-days N] [--all] [--dry-run]
 ```
 
 Run from inside your project, or pass `--root <dir>`.
@@ -129,6 +130,15 @@ Claude wants to run a tool (Write / Edit / Bash / PowerShell)
 - **Hooks never block Claude.** If anything goes wrong, Oops logs it and gets out of the way.
 - **Local only.** No server, no account, no API calls, no tokens spent. Zero dependencies, just Node's standard library.
 
+## Automatic cleanup
+
+History doesn't grow forever. Once a day, when Claude Code starts, Oops quietly removes steps **older than 30 days** in the background, along with any snapshot no remaining step needs. Everything you can still see in the timeline stays restorable.
+
+- **Keep more or less:** set `OOPS_KEEP_DAYS` (for example `OOPS_KEEP_DAYS=90`). `OOPS_KEEP_DAYS=0` turns cleanup off.
+- **Clean up now:** `oops prune` for this project, `oops prune --all` for every project. Add `--dry-run` to see what would be removed first.
+
+For scale: a 2,000-step stress test used 3.5 MB.
+
 ## Limitations
 
 Being honest about what an alpha does and doesn't do:
@@ -136,7 +146,6 @@ Being honest about what an alpha does and doesn't do:
 - **Skipped folders:** `.git`, `node_modules`, `.venv`, `venv`, `__pycache__`, `target`, `.next` and a few other caches. Add your own (one name per line) in a `.oopsignore` file in the project root.
 - **Large files:** files over 20 MB are skipped (change with `OOPS_MAX_FILE_MB`).
 - **Files outside the project** are tracked when Claude edits them with Write/Edit, but not when a shell command touches them.
-- **No automatic cleanup yet.** Old snapshots stay in `~/.oops-agent` until you delete that folder.
 - **Secrets:** snapshots are stored unencrypted in your home folder, including files like `.env`. Protect `~/.oops-agent` like you protect your project.
 - **The plugin must be on.** `claude --plugin-dir` applies to one launch only, so a later `claude --resume` runs without it. Install it with `/plugin install` to keep it on.
 - **Claude Code only, for now.** Cursor and Codex support is planned.

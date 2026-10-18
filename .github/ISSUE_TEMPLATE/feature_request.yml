@@ -1,0 +1,25 @@
+name: Feature request
+description: An idea to make Oops more useful
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation where Oops fell short.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent do you use?
+      multiple: true
+      options:
+        - Claude Code
+        - Cursor
+        - Codex
+        - Other

@@ -8,6 +8,8 @@
 //   oops undo [<id>]               restore the project to before <id> (default: the last change)
 //   oops restore <id> [--file P] [--after]
 //   oops ui [--port N] [--no-open] open the timeline in the browser
+//   oops prune [--keep-days N] [--all] [--dry-run]
+//                                  delete steps older than N days (default 30, or OOPS_KEEP_DAYS)
 //
 // Global option: --root <dir> (defaults to the current directory)
 
@@ -68,6 +70,12 @@ async function main() {
     process.exit(0);
   }
 
+  if (cmd === 'prune' && args.auto) {
+    // From the SessionStart hook: stdout there is added to Claude's context, so stay silent.
+    try { require('./lib/prune').autoPrune(); } catch (_) {}
+    process.exit(0);
+  }
+
   const store = new Store(args.root || process.cwd());
 
   switch (cmd) {
@@ -107,13 +115,27 @@ async function main() {
       console.log('\nThis restore is itself recorded — run `oops undo` again to revert it.');
       return;
     }
+    case 'prune': {
+      const { pruneStore, allStores, keepDaysSetting, dirSize } = require('./lib/prune');
+      const keepDays = args['keep-days'] !== undefined ? Number(args['keep-days']) : keepDaysSetting();
+      if (!Number.isFinite(keepDays) || keepDays < 0) throw new Error('--keep-days must be a number ≥ 0');
+      if (keepDays === 0 && args['keep-days'] === undefined) { console.log('Cleanup is off (OOPS_KEEP_DAYS=0).'); return; }
+      const stores = args.all ? allStores() : [store];
+      const mb = (b) => `${(b / 1024 / 1024).toFixed(1)} MB`;
+      for (const s of stores) {
+        const r = pruneStore(s, { keepDays, dryRun: !!args['dry-run'] });
+        console.log(`${s.root}\n  ${args['dry-run'] ? 'would remove' : 'removed'} ${r.removedSteps} step(s) older than ${keepDays} day(s), kept ${r.keptSteps}; ` +
+          `${args['dry-run'] ? 'would free' : 'freed'} ${mb(r.freedBytes)} (${r.removedBlobs} snapshots). History now ${mb(dirSize(s.dir))}.`);
+      }
+      return;
+    }
     case 'ui': {
       const { startServer } = require('./lib/server');
       await startServer(store, { port: Number(args.port || 0), open: !args['no-open'] });
       return;
     }
     default:
-      console.log(require('fs').readFileSync(__filename, 'utf8').split('\n').slice(2, 12).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      console.log(require('fs').readFileSync(__filename, 'utf8').split('\n').slice(2, 14).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
       if (cmd && cmd !== 'help' && cmd !== '--help') process.exitCode = 1;
   }
 }

@@ -147,6 +147,48 @@ try {
     assert.strictEqual(read('.env'), 'before\n');
   });
 
+  step('cleanup removes old steps and their snapshots, keeps everything still needed', () => {
+    const { Store } = require('../scripts/lib/store');
+    const { pruneStore, autoPrune } = require('../scripts/lib/prune');
+    const DAY = 24 * 60 * 60 * 1000;
+    process.env.OOPS_HOME = home; // never touch the real ~/.oops-agent
+    const store = new Store(proj);
+    const oldHash = store.putBuffer(Buffer.from(`only in an old step ${Date.now()}`));
+    const newHash = store.putBuffer(Buffer.from(`in a recent step ${Date.now()}`));
+    const oldBlob = store.objectPath(oldHash);
+    const longAgo = new Date(Date.now() - 2 * DAY);
+    fs.utimesSync(oldBlob, longAgo, longAgo);
+    fs.appendFileSync(store.eventsFile,
+      JSON.stringify({ id: 'ancient', t: Date.now() - 40 * DAY, tool: 'Write', summary: 'old.txt', changes: [{ p: 'old.txt', b: null, a: oldHash }] }) + '\n' +
+      JSON.stringify({ id: 'recent', t: Date.now(), tool: 'Write', summary: 'new.txt', changes: [{ p: 'new.txt', b: null, a: newHash }] }) + '\n');
+
+    const dry = pruneStore(store, { keepDays: 30, dryRun: true });
+    assert.strictEqual(dry.removedSteps, 1);
+    assert.ok(fs.existsSync(oldBlob), 'dry run must not delete');
+    assert.match(oops('prune', '--dry-run'), /would remove 1 step/);
+
+    const r = pruneStore(store, { keepDays: 30 });
+    assert.strictEqual(r.removedSteps, 1);
+    assert.ok(!fs.existsSync(oldBlob), 'snapshot only used by the old step is deleted');
+    assert.ok(store.hasBlob(newHash), 'snapshot used by a recent step is kept');
+    const ids = store.events().map((e) => e.id);
+    assert.ok(!ids.includes('ancient') && ids.includes('recent'));
+
+    // Every remaining step can still be restored.
+    for (const e of store.events()) for (const c of e.changes) for (const h of [c.b, c.a]) if (h) assert.ok(store.hasBlob(h), `missing ${h}`);
+    fs.writeFileSync(path.join(proj, '.env'), 'x1\n');
+    hook('PreToolUse', 'Write', { file_path: path.join(proj, '.env') }, 't11');
+    fs.writeFileSync(path.join(proj, '.env'), 'x2\n');
+    hook('PostToolUse', 'Write', { file_path: path.join(proj, '.env') }, 't11');
+    oops('undo');
+    assert.strictEqual(read('.env'), 'x1\n');
+
+    // Automatic cleanup runs at most once a day.
+    assert.ok(Array.isArray(autoPrune()));
+    assert.strictEqual(autoPrune(), null);
+    execFileSync('node', [CLI, 'prune', '--auto'], { env }); // silent, never fails
+  });
+
   step('broken hook input never fails', () => {
     execFileSync('node', [CLI, 'hook'], { env, input: 'not json' });
   });

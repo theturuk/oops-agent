@@ -1,6 +1,13 @@
 {
   "description": "Snapshot files before and after every file edit and shell command so they can be restored later",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/oops.js", "prune", "--auto"], "async": true }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit",

@@ -1,0 +1,40 @@
+name: Bug report
+description: Something didn't get recorded, didn't restore, or broke
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time! Oops is a safety net, so bugs that lose data are the top priority.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did the agent do, what did you expect Oops to show or restore, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Ask Claude to ...
+        2. Open /oops-agent:oops
+        3. ...
+  - type: textarea
+    id: log
+    attributes:
+      label: Output of `oops log --limit 10` and any error log
+      description: The error log is at `~/.oops-agent/projects/<project>/error.log`. Remove anything private first.
+      render: text
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 / macOS 15 / Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Oops, Claude Code and Node.js versions
+      placeholder: "Oops 0.3.0, Claude Code 2.1.302, Node 24.14.0"

@@ -1,0 +1,131 @@
+'use strict';
+// End-to-end test: simulates Claude Code calling the hooks, then restores.
+// Run: node test/smoke.js
+
+const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+const CLI = path.join(__dirname, '..', 'scripts', 'oops.js');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'oops-test-'));
+const home = path.join(tmp, 'home');
+const proj = path.join(tmp, 'my project');
+const env = { ...process.env, OOPS_HOME: home, CLAUDE_PROJECT_DIR: proj };
+
+function hook(event, tool, input, id) {
+  execFileSync('node', [CLI, 'hook'], {
+    env,
+    input: JSON.stringify({ hook_event_name: event, tool_name: tool, tool_input: input, tool_use_id: id, cwd: proj, session_id: 's1' }),
+  });
+}
+function oops(...args) {
+  return execFileSync('node', [CLI, ...args, '--root', proj], { env, encoding: 'utf8' });
+}
+const read = (p) => fs.readFileSync(path.join(proj, p), 'utf8');
+const exists = (p) => fs.existsSync(path.join(proj, p));
+
+let n = 0;
+function step(name, fn) { fn(); console.log(`ok ${++n} - ${name}`); }
+
+try {
+  fs.mkdirSync(path.join(proj, 'src'), { recursive: true });
+  fs.mkdirSync(path.join(proj, 'node_modules', 'x'), { recursive: true });
+  fs.writeFileSync(path.join(proj, 'src', 'app.js'), 'line1\nline2\n');
+  fs.writeFileSync(path.join(proj, '.env'), 'SECRET=1\n');
+  fs.writeFileSync(path.join(proj, 'node_modules', 'x', 'i.js'), 'ignored');
+
+  step('Edit is recorded', () => {
+    hook('PreToolUse', 'Edit', { file_path: path.join(proj, 'src', 'app.js') }, 't1');
+    fs.writeFileSync(path.join(proj, 'src', 'app.js'), 'line1\nCHANGED\n');
+    hook('PostToolUse', 'Edit', { file_path: path.join(proj, 'src', 'app.js') }, 't1');
+    assert.match(oops('log'), /\[Edit\] src\/app\.js/);
+  });
+
+  step('rm -rf via Bash is recorded', () => {
+    hook('PreToolUse', 'Bash', { command: 'rm -rf src .env' }, 't2');
+    fs.rmSync(path.join(proj, 'src'), { recursive: true });
+    fs.rmSync(path.join(proj, '.env'));
+    hook('PostToolUse', 'Bash', { command: 'rm -rf src .env' }, 't2');
+    const log = oops('log');
+    assert.match(log, /- \.env/);
+    assert.match(log, /- src\/app\.js/);
+    assert.doesNotMatch(log, /node_modules/);
+  });
+
+  step('Bash with no file changes is not recorded', () => {
+    hook('PreToolUse', 'Bash', { command: 'ls' }, 't3');
+    hook('PostToolUse', 'Bash', { command: 'ls' }, 't3');
+    assert.strictEqual((oops('log').match(/\[Bash\]/g) || []).length, 1);
+  });
+
+  step('undo brings deleted files back', () => {
+    oops('undo');
+    assert.strictEqual(read('src/app.js'), 'line1\nCHANGED\n');
+    assert.strictEqual(read('.env'), 'SECRET=1\n');
+  });
+
+  step('undo twice = redo', () => {
+    oops('undo');
+    assert.ok(!exists('.env') && !exists('src/app.js'));
+    oops('undo');
+    assert.ok(exists('.env'));
+  });
+
+  step('restore to before the first edit', () => {
+    const firstId = oops('log').split('\n')[0].split(' ')[0];
+    oops('restore', firstId);
+    assert.strictEqual(read('src/app.js'), 'line1\nline2\n');
+  });
+
+  step('restore a single file', () => {
+    fs.writeFileSync(path.join(proj, '.env'), 'SECRET=1\n');
+    hook('PreToolUse', 'Write', { file_path: path.join(proj, '.env') }, 't4');
+    fs.writeFileSync(path.join(proj, '.env'), 'OVERWRITTEN\n');
+    hook('PostToolUse', 'Write', { file_path: path.join(proj, '.env') }, 't4');
+    const lines = oops('log').split('\n').filter((l) => /^\S/.test(l));
+    const id = lines[lines.length - 1].split(' ')[0];
+    oops('restore', id, '--file', '.env');
+    assert.strictEqual(read('.env'), 'SECRET=1\n');
+  });
+
+  step('failed Bash command that still deleted files is recorded', () => {
+    hook('PreToolUse', 'Bash', { command: 'rm src/app.js && false' }, 't5');
+    fs.rmSync(path.join(proj, 'src', 'app.js'));
+    hook('PostToolUseFailure', 'Bash', { command: 'rm src/app.js && false' }, 't5');
+    oops('undo');
+    assert.ok(exists('src/app.js'));
+  });
+
+  step('PowerShell tool deletions are recorded (Windows)', () => {
+    hook('PreToolUse', 'PowerShell', { command: 'Remove-Item src/app.js' }, 't6');
+    fs.rmSync(path.join(proj, 'src', 'app.js'));
+    hook('PostToolUse', 'PowerShell', { command: 'Remove-Item src/app.js' }, 't6');
+    assert.match(oops('log'), /\[PowerShell\] Remove-Item/);
+    oops('undo');
+    assert.ok(exists('src/app.js'));
+  });
+
+  step('changes made while Oops was off show up as an external step', () => {
+    fs.rmSync(path.join(proj, 'src', 'app.js')); // no hooks: plugin was off
+    hook('PreToolUse', 'Bash', { command: 'echo hi' }, 't7');
+    hook('PostToolUse', 'Bash', { command: 'echo hi' }, 't7');
+    assert.match(oops('log'), /\[external\][^\n]*\n\s+- src\/app\.js/);
+    oops('undo');
+    assert.ok(exists('src/app.js'));
+  });
+
+  step('broken hook input never fails', () => {
+    execFileSync('node', [CLI, 'hook'], { env, input: 'not json' });
+  });
+
+  step('store lives outside the project', () => {
+    assert.ok(!fs.readdirSync(proj).some((f) => f.includes('oops')));
+    assert.ok(fs.existsSync(path.join(home, 'projects')));
+  });
+
+  console.log(`\nall ${n} tests passed`);
+} finally {
+  fs.rmSync(tmp, { recursive: true, force: true });
+}

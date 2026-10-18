@@ -1,0 +1,13 @@
+{
+  "name": "oops-agent",
+  "displayName": "Oops",
+  "version": "0.1.0",
+  "description": "Undo anything your AI agent did, even rm -rf. Snapshots files before every edit and shell command, with a visual timeline to scrub back and restore.",
+  "author": {
+    "name": "theturuk",
+    "url": "https://github.com/theturuk"
+  },
+  "repository": "https://github.com/theturuk/oops-agent",
+  "license": "MIT",
+  "keywords": ["undo", "backup", "snapshot", "timeline", "safety", "rewind"]
+}

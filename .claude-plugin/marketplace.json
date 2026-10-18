@@ -1,0 +1,14 @@
+{
+  "name": "oops-agent",
+  "description": "Oops: undo anything your AI agent did, even rm -rf",
+  "owner": {
+    "name": "theturuk"
+  },
+  "plugins": [
+    {
+      "name": "oops-agent",
+      "source": "./",
+      "description": "Undo anything your AI agent did, even rm -rf. Visual timeline to scrub back and restore."
+    }
+  ]
+}
